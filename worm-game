@@ -1,0 +1,167 @@
+;#lang racket
+; Head image is the red circle, and the segments or 'body' are all green.  The food is the blue star.
+(define head-img (circle 6 "solid" "red"))
+(define body-img (circle 6 "solid" "green"))
+(define food-img (star 16 "solid" "blue"))
+(define width 300)
+(define height 300)
+(define play-area (empty-scene width height))
+; The worm structure contains all the game data, including the position of food and the cumulative score.
+(define-struct worm (direction head body food score))
+; Movement of 8 is fairly decent for a gamer.  Anyone of less skill would need a different movement rate.
+(define movement-rate 8)
+; Juggle is the final render screen.  I just named it juggle and it stuck, but it shows the total score on the final screen.
+(define (juggle ws) (overlay (above (text "LOSE!" 80 "black")
+                                    (beside (text "SCORE: " 40 "black")
+                                            (text (number->string (worm-score ws)) 40 "black")))
+                             play-area))
+
+; This 'sample-worm' is really what the game initializes with - just a read dot for the head and no tail. (empty list for the tail)
+(define sample-worm (make-worm "none" (make-posn 100 100) '() (make-posn (random 280) (random 280)) 0))
+
+; This function subtracts or adds to the position for one of the four directions, depending only on what the worm-direction is from the structure.
+(define (moving-head ws)
+  (cond ((string=? "left" (worm-direction ws)) (make-posn (- (posn-x (worm-head ws))
+                                                             movement-rate)
+                                                          (posn-y (worm-head ws))))
+        ((string=? "right" (worm-direction ws)) (make-posn (+ (posn-x (worm-head ws))
+                                                              movement-rate)
+                                                           (posn-y (worm-head ws))))
+        ((string=? "up" (worm-direction ws)) (make-posn (posn-x (worm-head ws))
+                                                        (- (posn-y (worm-head ws))
+                                                           movement-rate)))
+        ((string=? "down" (worm-direction ws)) (make-posn (posn-x (worm-head ws))
+                                                          (+ (posn-y (worm-head ws))
+                                                             movement-rate)))
+        (else (make-posn (posn-x (worm-head ws))
+                         (posn-y (worm-head ws))))))
+
+; The moving-body creates the body during movement because you want each segment to be where the one in front of it was during last clock tick.
+; The first segment takes the former head location though.
+(define (moving-body ws)
+  (cond ((empty? (worm-body ws)) '())
+        (else (cons (make-posn (posn-x (worm-head ws)) (posn-y (worm-head ws)))
+                    (moving-body (make-worm (worm-direction ws)
+                                            (make-posn (posn-x (car (worm-body ws))) (posn-y (car (worm-body ws))))
+                                            (cdr (worm-body ws))
+                                            (worm-food ws)
+                                            (worm-score ws)))))))
+
+; The real-time score counter is included in the creation of the worm and is aligned to the bottom right of the play-area.
+(define (create-body ws)
+  (cond ((empty? (worm-body ws)) (place-image head-img
+                                              (posn-x (worm-head ws)) (posn-y (worm-head ws))
+                                              (overlay/align "right" "bottom"
+                                                             (beside (text "Score: " 15 "black")
+                                                                     (beside (text (number->string (worm-score ws)) 15 "black")
+                                                                             (text " " 15 "black")))
+                                                             play-area)))
+        (else (place-image body-img
+                           (posn-x (car (worm-body ws))) (posn-y (car (worm-body ws)))
+                           (create-body (make-worm (worm-direction ws) (worm-head ws) (cdr (worm-body ws)) (worm-food ws) (worm-score ws)))))))
+
+; This function was used instead of the absolute value of the later checks for positions.
+(define (subtract-greater a b)
+  (if (>= a b)
+      (- a b)
+      (- b a)))
+
+; Both this and the segment collision only check to see if the head interacted with either the food or a segment.
+(define (collision-food head food)
+  (cond ((and (<= (subtract-greater (posn-x head) (posn-x food)) 8)
+              (<= (subtract-greater (posn-y head) (posn-y food)) 8))
+         #true)
+        (else #false)))
+
+; Adds a segment to the body.  It was spawned in some area off screen because I felt it may or may not come into the world all jittery.
+(define (add-segment ws)
+  (make-worm (worm-direction ws)
+             (worm-head ws)
+             (reverse (cons (make-posn -10 -10) (reverse (worm-body ws))))
+             (worm-food ws)
+             (worm-score ws)))
+
+; In each clock tick it first checks to see if you had a food collision, then to see if you moved the worm at the beginning,
+; and then finally, it will keep making the worm up with the moving functions.
+(define (tock ws)
+  (cond ((equal? #true (collision-food (worm-head ws) (worm-food ws))) (make-worm (worm-direction ws)
+                                                                                  (moving-head ws)
+                                                                                  (moving-body (add-segment ws))
+                                                                                  (make-posn (random 280) (random 280))
+                                                                                  (+ (worm-score ws) 250)))
+        ((not (string=? "none" (worm-direction ws)))  (make-worm (worm-direction ws)
+                                                                 (moving-head ws)
+                                                                 (moving-body ws)
+                                                                 (worm-food ws)
+                                                                 (+ (worm-score ws) 1)))
+        (else (make-worm (worm-direction ws) (moving-head ws) (moving-body ws) (worm-food ws) (worm-score ws)))))
+
+(define (render ws)
+      (place-image food-img
+               (posn-x (worm-food ws)) (posn-y (worm-food ws))
+               (create-body ws)))
+
+; These keys are checked to see if you're trying to make the worm double back on itself and prevent that action.
+; Otherwise it allows movement in the direction you want.
+(define (key-in ws ke)
+ (cond ((and (string=? "left" ke)
+             (not (equal? "right" (worm-direction ws))))
+        (make-worm "left"
+                   (moving-head ws)
+                   (moving-body ws)
+                   (worm-food ws)
+                   (worm-score ws)))
+       ((and (string=? "right" ke)
+             (not (equal? "left" (worm-direction ws))))
+        (make-worm "right"
+                   (moving-head ws)
+                   (moving-body ws)
+                   (worm-food ws)
+                   (worm-score ws)))
+       ((and (string=? "up" ke)
+             (not (equal? "down" (worm-direction ws))))
+        (make-worm "up"
+                   (moving-head ws)
+                   (moving-body ws)
+                   (worm-food ws)
+                   (worm-score ws)))
+       ((and (string=? "down" ke)
+             (not (equal? "up" (worm-direction ws))))
+        (make-worm "down"
+                   (moving-head ws)
+                   (moving-body ws)
+                   (worm-food ws)
+                   (worm-score ws)))
+       (else (make-worm (worm-direction ws) (worm-head ws) (worm-body ws) (worm-food ws) (worm-score ws)))))
+
+(define (check-segments head body-segments)
+  (cond ((empty? body-segments) #false)
+        ((equal? (collision-body head (car body-segments)) #true) #true)
+        (else (check-segments head (cdr body-segments)))))
+               
+(define (collision-body head body)
+  (cond ((and (<= (subtract-greater (posn-x head) (posn-x body)) 6)
+              (<= (subtract-greater (posn-y head) (posn-y body)) 6))
+         #true)
+        (else #false)))
+
+; This is the function that checks all the game-ending conditions.
+(define (when ws)
+  (or (> (posn-x (worm-head ws)) width)
+      (> (posn-y (worm-head ws)) height)
+      (< (posn-x (worm-head ws)) 0)
+      (< (posn-y (worm-head ws)) 0)
+      (check-segments (worm-head ws) (worm-body ws))))
+
+; Here's that weird juggle call.
+(define (fail-picture ws)
+   (juggle ws))
+
+(define (worm-main ws)
+  (big-bang ws
+    (on-tick tock)
+    (to-draw render)
+    (on-key key-in)
+    (stop-when when fail-picture)))
+
+(worm-main sample-worm)
