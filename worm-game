@@ -1,15 +1,20 @@
 ;#lang racket
+
 ; Head image is the red circle, and the segments or 'body' are all green.  The food is the blue star.
 (define head-img (circle 6 "solid" "red"))
+
 (define body-img (circle 6 "solid" "green"))
 (define food-img (star 16 "solid" "blue"))
 (define width 300)
 (define height 300)
 (define play-area (empty-scene width height))
+
 ; The worm structure contains all the game data, including the position of food and the cumulative score.
 (define-struct worm (direction head body food score))
+
 ; Movement of 8 is fairly decent for a gamer.  Anyone of less skill would need a different movement rate.
 (define movement-rate 8)
+
 ; Juggle is the final render screen.  I just named it juggle and it stuck, but it shows the total score on the final screen.
 (define (juggle ws) (overlay (above (text "LOSE!" 80 "black")
                                     (beside (text "SCORE: " 40 "black")
@@ -19,7 +24,8 @@
 ; This 'sample-worm' is really what the game initializes with - just a read dot for the head and no tail. (empty list for the tail)
 (define sample-worm (make-worm "none" (make-posn 100 100) '() (make-posn (random 280) (random 280)) 0))
 
-; This function subtracts or adds to the position for one of the four directions, depending only on what the worm-direction is from the structure.
+; This function subtracts or adds to the position for one of the four directions, depending only on what the worm-direction
+; is from the structure.
 (define (moving-head ws)
   (cond ((string=? "left" (worm-direction ws)) (make-posn (- (posn-x (worm-head ws))
                                                              movement-rate)
@@ -36,8 +42,8 @@
         (else (make-posn (posn-x (worm-head ws))
                          (posn-y (worm-head ws))))))
 
-; The moving-body creates the body during movement because you want each segment to be where the one in front of it was during last clock tick.
-; The first segment takes the former head location though.
+; The function creates the body during movement because you want each segment to be where the one in front of it 
+; was during last clock tick.  The first segment takes the former head location though.
 (define (moving-body ws)
   (cond ((empty? (worm-body ws)) '())
         (else (cons (make-posn (posn-x (worm-head ws)) (posn-y (worm-head ws)))
@@ -73,7 +79,7 @@
          #true)
         (else #false)))
 
-; Adds a segment to the body.  It was spawned in some area off screen because I felt it may or may not come into the world all jittery.
+; Adds a segment to the body.  It was spawned in some area off screen because I felt it might come into the play-area all jittery.
 (define (add-segment ws)
   (make-worm (worm-direction ws)
              (worm-head ws)
@@ -82,7 +88,7 @@
              (worm-score ws)))
 
 ; In each clock tick it first checks to see if you had a food collision, then to see if you moved the worm at the beginning,
-; and then finally, it will keep making the worm up with the moving functions.
+; and then finally, it will keep making the worm with the moving functions.
 (define (tock ws)
   (cond ((equal? #true (collision-food (worm-head ws) (worm-food ws))) (make-worm (worm-direction ws)
                                                                                   (moving-head ws)
