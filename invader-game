@@ -1,0 +1,224 @@
+(define background picture)
+(define bullet picture)
+(define tank picture)
+(define ufo picture)
+(define height (- (image-height background) 30))
+(define width (image-width background))
+(define ufo-start-height 30)
+(define bullet-movement -10)
+(define bullet-height (- height 5))
+(define tank-movement 3)
+(define ufo-movement 5)
+(define max-movement (- width 30))
+(define min-movement 30)
+(define bullets-max 3)
+(define player-min 20)
+(define player-max (- width 20))
+(define collision-distance 10)
+
+; tank is a posn, ufos and bullets are lists of posns.
+(define-struct invader (tank direction ufos bullets))
+(define-struct craft (posn direction))
+
+; helper function to count all the items in a list.
+(define (list-counter-helper lst amount)
+  (cond ((empty? lst) amount)
+        (else (list-counter-helper (cdr lst) (+ amount 1)))))
+
+
+; basically only used for the bullets shot so you can keep a certain amount on the screen.
+(define (list-counter lst)
+  (list-counter-helper lst 0))
+
+; renders the bullets only
+(define (render-bullets ws)
+  (cond ((empty? (invader-bullets ws)) background)
+        ((equal? (bullet-collision ws (invader-ufos ws) (invader-bullets ws)) #true)
+         (invader-bullets (bullet-collision-helper ws
+                                                   (invader-ufos ws)
+                                                   (invader-bullets ws)
+                                                   0
+                                                   0)))
+        (else (place-image bullet
+                           (posn-x (car (invader-bullets ws))) (posn-y (car (invader-bullets ws)))
+                           (render-bullets (make-invader (invader-tank ws)
+                                                         (invader-direction ws)
+                                                         (invader-ufos ws)
+                                                         (cdr (invader-bullets ws))))))))
+
+; renders the ufos only  
+(define (render-ufos ws)
+  (cond ((empty? (invader-ufos ws)) (render-bullets ws))
+        (else (place-image ufo
+                           (posn-x (craft-posn (car (invader-ufos ws)))) (posn-y (craft-posn (car (invader-ufos ws))))
+                           (render-ufos (make-invader (invader-tank ws)
+                                                      (invader-direction ws)
+                                                      (cdr (invader-ufos ws))
+                                                      (invader-bullets ws)))))))
+
+
+; so far can shoot three bullets that disappear when at the top via the "bullet-mover" function.
+(define (key-in ws ke)
+  (cond ((string=? "left" ke) (make-invader (invader-tank ws)
+                                            "left"
+                                            (invader-ufos ws)
+                                            (invader-bullets ws)))
+        ((string=? "right" ke) (make-invader (invader-tank ws)
+                                             "right"
+                                             (invader-ufos ws)
+                                             (invader-bullets ws)))
+        ((and (string=? " " ke)
+              (< (list-counter (invader-bullets ws)) bullets-max)) (make-invader (invader-tank ws)
+                                                                                 (invader-direction ws)
+                                                                                 (invader-ufos ws)
+                                                                                 (cons (make-posn (posn-x (invader-tank ws))
+                                                                                                  bullet-height)
+                                                                                       (invader-bullets ws))))
+        (else ws)))
+
+; increments the bullets and removes a bullet if it goes off the top of the screen.
+(define (bullet-mover bullet-list)
+  (cond ((empty? bullet-list) '())
+        ((<= (posn-y (car bullet-list)) 0) (bullet-mover (cdr bullet-list)))
+        (else (cons (make-posn (posn-x (car bullet-list)) (+ (posn-y (car bullet-list)) bullet-movement))
+                    (bullet-mover (cdr bullet-list))))))
+
+; used in the collision-helper function
+(define (remake-ufos ufo-list ufo-counter current-counter)
+  (cond ((empty? ufo-list) '())
+        ((equal? ufo-counter current-counter) (remake-ufos (cdr ufo-list) ufo-counter (+ current-counter 1)))
+        (else (cons (car ufo-list) (remake-ufos (cdr ufo-list) ufo-counter (+ current-counter 1))))))
+
+; also used in collision-helper
+(define (remake-bullets bullet-list bullet-counter current-counter)
+  (cond ((empty? bullet-list) '())
+        ((equal? bullet-counter current-counter) (remake-bullets (cdr bullet-list) bullet-counter current-counter))
+        (else (cons (car bullet-list) (remake-bullets (cdr bullet-list) bullet-counter (+ current-counter 1))))))
+
+; Since getting to this function has to already have been true, an altered world state goes back to 'ufo-mover'.
+; ufo-list and bullet-list are there to help remake a new world state.
+(define (bullet-collision-helper ws ufo-list bullet-list bullet-counter ufo-counter)
+  (cond  ((empty? bullet-list) (bullet-collision-helper ws
+                                                        (cdr ufo-list)
+                                                        (invader-bullets ws)
+                                                        0
+                                                        (+ ufo-counter 1)))
+        ((and (<= (abs (- (posn-x (car bullet-list))
+                          (posn-x (craft-posn (car ufo-list)))))
+                  collision-distance)
+              (<= (abs (- (posn-y (car bullet-list))
+                          (posn-y (craft-posn (car ufo-list)))))
+                  collision-distance))
+         (make-invader (invader-tank ws)
+                       (invader-direction ws)
+                       (remake-ufos (invader-ufos ws) ufo-counter 0)
+                       (remake-bullets (invader-bullets ws) bullet-counter 0)))
+        (else (bullet-collision-helper ws ufo-list (cdr bullet-list) (+ bullet-counter 1) ufo-counter))))
+
+; checks if necessary to use the collision helper
+(define (bullet-collision ws ufo-list bullet-list)
+  (cond ((empty? ufo-list) #false)
+        ((empty? bullet-list) (bullet-collision ws (cdr ufo-list) (invader-bullets ws)))
+        ((and (<= (abs (- (posn-x (car bullet-list))
+                          (posn-x (craft-posn (car ufo-list)))))
+                  collision-distance)
+              (<= (abs (- (posn-y (car bullet-list))
+                          (posn-y (craft-posn (car ufo-list)))))
+                  collision-distance))
+         #true)
+        (else (bullet-collision ws ufo-list (cdr bullet-list)))))
+       
+; increments the ufos was going to change the ufo-list to ufo-world state. revise to include the worldstate...
+(define (ufo-mover ws ufo-list)
+  (cond ((empty? ufo-list) '())
+        ((equal? (bullet-collision ws (invader-ufos ws) (invader-bullets ws))
+                 #true)
+         (invader-ufos (bullet-collision-helper ws
+                                                (invader-ufos ws)
+                                                (invader-bullets ws)
+                                                0
+                                                0)))
+        ((>= (posn-x (craft-posn (car ufo-list))) max-movement)
+         (cons (make-craft (make-posn (- (posn-x (craft-posn (car ufo-list))) ufo-movement)
+                                      (posn-y (craft-posn (car ufo-list))))
+                           "left")
+               (ufo-mover ws (cdr ufo-list))))
+        ((<= (posn-x (craft-posn (car ufo-list))) min-movement)
+         (cons (make-craft (make-posn (+ (posn-x (craft-posn (car ufo-list))) ufo-movement)
+                                      (posn-y (craft-posn (car ufo-list))))
+                           "right")
+               (ufo-mover ws (cdr ufo-list))))
+        (else (cons (make-craft (make-posn (if (string=? "left" (craft-direction (car ufo-list)))
+                                               (- (posn-x (craft-posn (car ufo-list))) ufo-movement)
+                                               (+ (posn-x (craft-posn (car ufo-list))) ufo-movement))
+                                           (posn-y (craft-posn (car ufo-list))))
+                                (craft-direction (car ufo-list)))
+                    (ufo-mover ws (cdr ufo-list))))))
+
+
+; checks if the player has reached the edge of the game screen yet.
+(define (tock-helper ws)
+  (cond ((and (string=? "left" (invader-direction ws))
+              (<= (posn-x (invader-tank ws)) player-min))
+         #true)
+        ((and (string=? "right" (invader-direction ws))
+              (>= (posn-x (invader-tank ws)) player-max))
+         #true)
+        (else #false)))
+
+; First checks if the direction and position are good, then moves, or else it reverses the tank direction.
+(define (tock ws)
+  (cond ((and (string=? "left" (invader-direction ws))
+              (not (tock-helper ws)))
+         (make-invader  (make-posn (- (posn-x (invader-tank ws)) tank-movement) height)
+                        "left"
+                        (ufo-mover ws (invader-ufos ws))
+                        (bullet-mover (invader-bullets ws))))
+        ((and (string=? "right" (invader-direction ws))
+              (not (tock-helper ws)))
+         (make-invader (make-posn (+ (posn-x (invader-tank ws)) tank-movement)  height)
+                       "right"
+                       (ufo-mover ws (invader-ufos ws))
+                       (bullet-mover (invader-bullets ws))))
+        ((and (string=? "left" (invader-direction ws))
+              (tock-helper ws))
+         (make-invader  (make-posn (+ (posn-x (invader-tank ws)) tank-movement) height)
+                        "right"
+                        (ufo-mover ws (invader-ufos ws))
+                        (bullet-mover (invader-bullets ws))))
+        ((and (string=? "right" (invader-direction ws))
+              (tock-helper ws))
+         (make-invader (make-posn (- (posn-x (invader-tank ws)) tank-movement)  height)
+                       "left"
+                       (ufo-mover ws (invader-ufos ws))
+                       (bullet-mover (invader-bullets ws))))
+        (else ws)))
+                                                              
+; render-ufos is tied to this to finish the picture.
+(define (render-invader ws)
+  (place-image tank
+               (posn-x (invader-tank ws)) (posn-y (invader-tank ws))
+               (render-ufos ws)))
+
+; Main game stuff.
+(define (invader-game ws)
+  (big-bang ws
+    (to-draw render-invader)
+    (on-key key-in)
+    (on-tick tock)))
+
+; Prototyping stuff.
+(invader-game (make-invader (make-posn (/ width 2) height)
+                            "none"
+                            (list (make-craft (make-posn 60 30) "right")
+                                  (make-craft (make-posn 110 60) "right")
+                                  (make-craft (make-posn 140 90) "left")
+                                  (make-craft (make-posn 50 120) "right")
+                                  (make-craft (make-posn 180 150) "right")
+                                  (make-craft (make-posn 190 180) "right")
+                                  (make-craft (make-posn 170 210) "right")
+                                  (make-craft (make-posn 15 240) "right")
+                                  (make-craft (make-posn 210 270) "right"))
+                            '()))
+                            
+
