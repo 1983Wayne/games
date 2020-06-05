@@ -1,0 +1,93 @@
+#lang racket
+(define hangman-list '(--- ---O ---O+ ---O+- ---O+-< XXXXXXXXX))
+(define list-of-lists '(birds food house))
+(define bird-list '(cuckoo cockatiel bluejay robin crane sterling magpie blackbird sparrow))
+(define food-list '(bread pudding noodles cream cereal pancake strawberry banana beer avacado))
+(define house-list '(door roof yard fence window shed knob stopper banister railing steps staircase))
+(define lis-declared 'pickmehercpickme)
+(define word-to-guess 'something)
+(define letters-guessed '())
+(define letter-picked 'x)
+(define mistake-count 0)
+
+; will quit if you like
+(define (quitter)
+  (display "SEE YOU NEXT TIME!")
+  (newline)
+  (display "PRESS ALMOST ANY KEY TO QUIT")
+  (newline)
+  (if (equal? (read) '-)
+      (display "YOU SHOULD NOT BE SEEING THIS")
+      (exit #t)))
+
+
+(define (game-state hangman-state mistakes letters-guessed word)
+  (display "Hangman progress:")
+  (display (list-ref hangman-list mistakes))
+  (newline)
+  (display "Letters guessed: ")
+  (display letters-guessed)
+  (newline)
+  (display "Word and Progress: ")
+  (display (replace-letters (make-hang word) letters-guessed))
+  (newline)
+  (letter-word-input))
+
+; To get a word or a letter from the user
+(define (letter-word-input)
+  (printf "Try a letter or a word.")
+  (newline)
+  (set! letter-picked (read))
+  (set! letters-guessed (cons letter-picked letters-guessed))
+  (cond  ((equal? 'quit letter-picked) (display "BYE FOR NOW!")
+                                       (newline)
+                                       (quitter))
+         ((member letter-picked (make-hang word-to-guess)) (set! mistake-count mistake-count))
+         ((>= (+ mistake-count 1) 6) (display "YOU HAVE LOST!")
+                                     (newline)
+                                     (quitter))
+         ((equal? letter-picked word-to-guess) (display "YOU HAVE WON!")
+                                              (newline)
+                                              (quitter))
+         (else (set! mistake-count (+ mistake-count 1))))
+  (game-state (list-ref hangman-list mistake-count) mistake-count letters-guessed word-to-guess))
+
+(define (choose-list-type)
+  (printf "Before you begin, choose from: ")
+  (display list-of-lists)
+  (newline)
+  (set! lis-declared (read))
+  (set! word-to-guess (list-ref (list-selector lis-declared) (random 0 (length (list-selector lis-declared)))))
+  (if (not (member lis-declared list-of-lists))
+      (choose-list-type)
+      (game-state (list-ref hangman-list 0) 0 '() (make-hang word-to-guess))))
+
+
+; will select the list for you.
+(define (list-selector x)
+  (cond ((equal? 'birds x) bird-list)
+        ((equal? 'food x) food-list)
+        (else house-list)))
+
+; To make a hangman word exploded from the selected list of symbols
+(define (make-hang wd)
+  (define (convert-string-list wd)
+    (string->list wd))
+  (define (convert-list-symbols string-list)
+    (cond ((empty? string-list) '())
+          (else (cons (string->symbol (string (car string-list))) (convert-list-symbols (cdr string-list))))))
+  (if (not (list? wd))
+      (convert-list-symbols (convert-string-list (symbol->string wd)))
+      wd))
+
+
+; Replaces letters with underscores or a letter if guessed
+(define (replace-letters lst guessed)
+  (cond ((empty? lst) '())
+        (else (if (member (car lst) guessed)
+                  (cons (car lst) (replace-letters (cdr lst) guessed))
+                  (cons '_ (replace-letters (cdr lst) guessed))))))
+
+
+; Starts the game
+(define start-game (choose-list-type))
