@@ -1,0 +1,139 @@
+(defparameter *hangman-states* '(- -O -O+ -O+< XXXX))
+
+(defvar *mistakes* 0)
+; It's 5 total for lose.
+
+(defvar *current-letter* nil)
+
+(defvar *letters-chosen* nil)
+
+(defparameter *birdlist* (list 'blackbird 'robin 'eagle 'sparrow 'magpie
+			       'bluejay  'cardinal 'tit 'hawk 'owl
+			       'pheasant 'swan 'goose 'flamingo 'toucan
+			       'parrot 'crane 'heron))
+
+(defparameter *houselist* (list 'window 'staircase 'door 'kitchen 'bath 'oven
+				'bed 'dresser 'banister 'railing 'garden
+				'porch 'basement 'desk 'television 'shower
+				'tub 'sink 'dryer 'washer 'table 'chair))
+
+(defparameter *robotlist* (list 'actuator 'sensor 'stepper 'motor 'gripper
+				 'antenna 'servo 'arduino 'microcontroller
+				 'articulation 'infrared 'ultrasonic 'transistor
+				 'capacitor 'resistor 'laser))
+
+(defvar *current-subject* nil)
+
+(defvar *current-word* nil)
+
+(defvar *word-guess* nil)
+
+;;;;; **********************************************;;;;;;;
+;;;;; EITHER SETTING THE GAME UP OR RESETTING IT ***;;;;;;;
+
+
+(defun pick-an-item (itemlist)
+  "To be used with the set-word function."
+  (elt itemlist (random (length itemlist))))
+		 
+(defun reset-game ()
+  "Will reset everything to the beginning for a new game."
+  (if (y-or-n-p "Did you want to play again?")
+      (progn (setf *mistakes* 0)
+	     (setf *letters-chosen* nil)
+	     (set-word)
+	     (refresh-game))
+      (progn (princ "The word was ")
+	     (princ *current-word*)
+	     (fresh-line))))
+      
+
+(defun set-word ()
+  "Uses the pick-an-item function to set the game word based on the subject matter chosen either at the beginning or between games.. Uses mapcar to intern each character into a symbol in the list, so that the letters are spaced out during the game and not bunched together.  The only reason it is being used is so that you can see the underscore of the unguessed letters a LOT easier."
+  (setf *current-word*
+	(mapcar #'(lambda (x) (intern (string x)))
+		(coerce
+		 (prin1-to-string (pick-an-item
+				   (cond ((eq *current-subject* 'birds)
+					  *birdlist*)
+					 ((eq *current-subject* 'house)
+					  *houselist*)
+					 ((eq *current-subject* 'robots)
+					  *robotlist*)
+					 (t *birdlist*))))
+		 'list))))
+
+(setf *current-subject* (read-from-string (read-line)))
+
+(setf *current-word* (set-word))
+
+(defun start-hangman ()
+  (setf *mistakes* 0)
+  (setf *letters-chosen* nil)
+  (fresh-line)
+  (princ "Choose either birds, robots, or house as a subject >  ")
+  (setf *current-subject* (read))
+  (fresh-line)
+  (princ "You have chosen ")
+  (princ *current-subject*)
+  (princ " good luck!")
+  (set-word)
+  (refresh-game))
+
+;;;;;;;*****************************************;;;;;;;;;
+;;;;;;;END OF SETTING UP THE GAME***************;;;;;;;;;
+
+
+; ********************************************************
+;;;;;; GAMEPLAY FUNCTIONS HERE ***************************
+
+(defun play-word (current-word letters-guessed)
+  (cond ((null current-word) '())
+	((member (car current-word) letters-guessed)
+	 (cons (car current-word) (play-word (cdr current-word)
+					       letters-guessed)))
+	(t (cons '_ (play-word (cdr current-word)
+			       letters-guessed)))))
+
+(defun refresh-game ()
+  (fresh-line)
+  (princ "Your death progress ->>>|")
+  (princ (nth *mistakes* *hangman-states*))
+  (fresh-line)
+  (princ "Your word: ")
+  (princ (play-word *current-word* *letters-chosen*))
+  (princ " Letters guessed: ")
+  (princ *letters-chosen*)
+  (fresh-line)
+  (princ "Choose a letter or type the name >  ")
+  (setf *current-letter* (read))
+  (choose-letter *current-letter*))
+
+(defun choose-letter (letter)
+  (fresh-line)
+  (setf *letters-chosen* (cons letter *letters-chosen*))
+  (cond ((= *mistakes* 4) (reset-game))
+	((member letter *current-word*)
+	 (progn (princ "That was definitely part of the word, now try again!")
+		(refresh-game)))
+	((check-word-guess-p (explode letter) *current-word*)
+	 (progn (princ "THAT WAS THE WORD. YOU ARE THE WINNER OF HANGMAN!")
+		(fresh-line)
+		(reset-game)))
+	((eq letter 'quit)
+	 (progn (princ "You have chosen to quit. GOODBYE FOREVER!")
+		(fresh-line)))
+	(t (progn (princ "That is not part of the word, try again!")
+		  (incf *mistakes* 1)
+		  (refresh-game)))))
+
+(defun explode (word)
+(mapcar #'(lambda (x) (intern (string x)))
+	(coerce (prin1-to-string word) 'list)))
+
+(defun check-word-guess-p (word current-word)
+  (cond ((and (null word)
+	      (null current-word)) t)
+	((not (eq (car word)
+		  (car current-word))) NIL)
+	(t (check-word-guess-p (cdr word) (cdr current-word)))))
