@@ -1,0 +1,156 @@
+import pygame, sys, random
+from pygame.locals import *
+pygame.init()
+
+RUNNING = True
+SNOW = True
+SQUARE = False
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+WIDTH = 500
+HEIGHT = 400
+SIZE = (WIDTH, HEIGHT)
+DISPLAYSURF = pygame.display.set_mode(SIZE)
+pygame.display.set_caption('GAME')
+DONE = False
+FPS = 30
+CLOCK = pygame.time.Clock()
+velocityX = 5
+velocityY = 5
+
+snowRadius = 2
+snowList = []
+snowListVelocities = []
+snowCount = 30
+maxVelocity = 4
+minVelocity = 1
+snowSize = 1 # looks really decent for simple stars going by
+playerImage = pygame.image.load('ship.png')
+playerX = ( WIDTH / 2) - 20
+playerY = HEIGHT - 50
+playerSpeed = 4
+bulletSizeX = 4
+bulletSizeY = 15
+bulletOnScreen = False
+bulletLocX = 0
+bulletLocY = 0
+bulletSpeed = 10
+badGuysSpacing = 50
+badGuys = [[20, 40], [60, 40], [100, 40]]
+badGuysDirection = 'right'
+badGuysSpeed = 2
+enemyImg = pygame.image.load('enemy.png')
+badGuysDropSpeed = 15
+collisionAmt = 8
+explosionList = []
+expl1 = pygame.image.load('expl1.png')
+expl2 = pygame.image.load('expl2.png')
+expl3 = pygame.image.load('expl3.png')
+expl4 = pygame.image.load('expl4.png')
+explosionTimes = []
+explosionProgression = 3
+
+def createSnowSpeeds():
+    for i in range(snowCount):
+        snowListVelocities.append(random.randint(minVelocity, maxVelocity))
+                                  
+def randomLocation():
+    posnX = random.randint(0, WIDTH)
+    posnY = random.randint(0, HEIGHT)
+    return [posnX, posnY]
+    
+def dropBadGuys(BGlist):
+    for i in range(len(BGlist)):
+        BGlist[i][1] += badGuysDropSpeed
+              
+def animateExplosions(explosionTimes, explosionList):
+    for i in range(len(explosionTimes)):
+        if explosionTimes[i] < 10:
+            DISPLAYSURF.blit(expl1, (explosionList[i][0], explosionList[i][1]))
+        elif explosionTimes[i] < 20:
+            DISPLAYSURF.blit(expl2, (explosionList[i][0], explosionList[i][1]))
+        elif explosionTimes[i] < 30:
+            DISPLAYSURF.blit(expl3, (explosionList[i][0], explosionList[i][1]))
+        elif explosionTimes[i] < 40:
+            DISPLAYSURF.blit(expl4, (explosionList[i][0], explosionList[i][1]))
+        elif explosionTimes[i] < 50:
+            DISPLAYSURF.blit(expl3, (explosionList[i][0], explosionList[i][1]))
+        elif explosionTimes[i] < 60:
+            DISPLAYSURF.blit(expl2, (explosionList[i][0], explosionList[i][1]))
+        elif explosionTimes[i] < 70:
+            explosionTimes.pop(i)
+            explosionList.pop(i)
+            
+def createSnowList():
+    if len(snowList) < 1:
+        for i in range(snowCount):
+            snowList.append(randomLocation())
+
+def createBadGuys():
+    for i in 10:
+        for j in 10:
+            badGuys.append()
+createSnowList()
+createSnowSpeeds()
+
+while RUNNING:
+    DISPLAYSURF.fill(BLACK)
+    keys = pygame.key.get_pressed()
+        
+    if SNOW:
+        for i in range(len(snowList)):
+            pygame.draw.circle(DISPLAYSURF, WHITE, snowList[i], snowSize)
+            snowList[i][1] += snowListVelocities[i]
+            #snowListVelocities is one integer per list entry
+            if snowList[i][1] > HEIGHT:
+                snowList[i] = [random.randint(0, WIDTH), 0]
+                
+    if keys[pygame.K_LEFT] and playerX >= 10:
+        playerX -= playerSpeed
+    if keys[pygame.K_RIGHT] and playerX <= WIDTH - 50:
+        playerX += playerSpeed
+    if keys[pygame.K_SPACE] and not bulletOnScreen:
+        bulletOnScreen = True
+        bulletLocX = playerX + 18
+        bulletLocY = playerY - 10
+        
+    if bulletOnScreen and bulletLocY >= 0:
+        pygame.draw.rect(DISPLAYSURF, WHITE, [bulletLocX, bulletLocY, bulletSizeX, bulletSizeY])
+        bulletLocY -= bulletSpeed  
+    elif bulletOnScreen and bulletLocY <= 0:
+        bulletOnScreen = False
+        
+    if len(badGuys) > 0:
+        if bulletOnScreen:
+            for i in range(len(badGuys)):
+                if abs(bulletLocX - badGuys[i][0]) <= collisionAmt and abs(bulletLocY - badGuys[i][1]) <= collisionAmt:
+                    explosionList.append(badGuys.pop(i))
+                    explosionTimes.append(0)
+                    bulletOnScreen = False
+                    break
+        for i in range(len(badGuys)):
+            if badGuys[i][0] < 10:
+                badGuysDirection = 'right'
+                dropBadGuys(badGuys)
+            elif badGuys[i][0] > WIDTH - 30:
+                badGuysDirection = 'left'
+                dropBadGuys(badGuys)
+        for i in range(len(badGuys)):
+            if badGuysDirection == 'right':
+                badGuys[i][0] += badGuysSpeed
+            elif badGuysDirection =='left':
+                    badGuys[i][0] -= badGuysSpeed
+            DISPLAYSURF.blit(enemyImg, (badGuys[i][0], badGuys[i][1]))
+    if len(explosionTimes) > 0:
+        for i in range(len(explosionTimes)):
+            explosionTimes[i] += explosionProgression #basically a timer addition
+        animateExplosions(explosionTimes, explosionList)
+    DISPLAYSURF.blit(playerImage, (playerX, playerY))
+            
+    for event in pygame.event.get():
+        if event.type == QUIT:
+            pygame.quit()
+            sys.exit()
+    
+    CLOCK.tick(FPS)
+    pygame.display.update()
