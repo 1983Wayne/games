@@ -2,6 +2,9 @@ import pygame, sys, random
 from pygame.locals import *
 pygame.init()
 
+PAUSE = False
+GREEN = (0, 255, 0)
+INVIS = (0, 0, 0, 0)
 RUNNING = True
 SNOW = True
 SQUARE = False
@@ -17,7 +20,7 @@ FPS = 30
 CLOCK = pygame.time.Clock()
 velocityX = 5
 velocityY = 5
-
+SCORE = 0
 snowRadius = 2
 snowList = []
 snowListVelocities = []
@@ -35,12 +38,10 @@ bulletOnScreen = False
 bulletLocX = 0
 bulletLocY = 0
 bulletSpeed = 10
-badGuysSpacing = 50
-badGuys = [[20, 40], [60, 40], [100, 40]]
-badGuysDirection = 'right'
+badGuys = []
 badGuysSpeed = 2
 enemyImg = pygame.image.load('enemy.png')
-badGuysDropSpeed = 15
+badGuysDropSpeed = 5
 collisionAmt = 8
 explosionList = []
 expl1 = pygame.image.load('expl1.png')
@@ -49,20 +50,73 @@ expl3 = pygame.image.load('expl3.png')
 expl4 = pygame.image.load('expl4.png')
 explosionTimes = []
 explosionProgression = 3
+badGuyStartHeight = 100
+badGuyStartLeft = 20
+badGuyRow = 8
+badGuyColumn = 5
+badGuySpacing = 30
+badGuysDirection = 'right'
+badPoints = 10 # Amount of points gained per enemy shot down
+font = pygame.font.Font('freesansbold.ttf', 25)
+font2 = pygame.font.Font('freesansbold.ttf', 20)
+pausedFont = pygame.font.Font('freesansbold.ttf', 50)
+scorePosnX = WIDTH - 150
+scorePosnY = 20
+scoreMessage = "SCORE"
+scoreAmtPosnX = WIDTH - 120
+scoreAmtPosnY = 50
+endTimer = 0
 
+def paused():
+    global PAUSE
+    pausedText = font.render("PRESS G TO CONTINUE", True, WHITE)
+    DISPLAYSURF.blit(pausedText, [WIDTH / 4, HEIGHT / 2]) 
+    while PAUSE:
+        lookForG = pygame.key.get_pressed()
+        if lookForG[pygame.K_g]:
+            PAUSE = False
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                quit()
+        pygame.display.update()
+        CLOCK.tick(15)
+        
+
+# Start the customizable list off with some baddies.
+def createBadGuyList(left, height, spacing):
+    for i in range(badGuyRow):
+        for j in range(badGuyColumn):
+            badGuys.append([i * spacing + left, j * spacing + height])
+
+def quit():
+    pygame.quit()
+    sys.exit()
+    
+# Does all the score for the game from here.
+def doScore(message, colour, wordScoreX, wordScoreY, amount, amountX, amountY):
+    global DISPLAYSURF
+    scoreText = font.render(message, True, colour)
+    scoreItself = font2.render(str(amount), True, colour)
+    DISPLAYSURF.blit(scoreText, [wordScoreX, wordScoreY])
+    DISPLAYSURF.blit(scoreItself, [amountX, amountY])
+    
+# You want a bunch of different speeds of the stars so here it is.
 def createSnowSpeeds():
     for i in range(snowCount):
         snowListVelocities.append(random.randint(minVelocity, maxVelocity))
-                                  
+
+# Should be more called ''randomCoordinates''                            
 def randomLocation():
     posnX = random.randint(0, WIDTH)
     posnY = random.randint(0, HEIGHT)
     return [posnX, posnY]
     
+# Only called when they hit the edge of the screen, and they'll drop down.
 def dropBadGuys(BGlist):
     for i in range(len(BGlist)):
         BGlist[i][1] += badGuysDropSpeed
-              
+            
+# Super cheesy Explosions!
 def animateExplosions(explosionTimes, explosionList):
     for i in range(len(explosionTimes)):
         if explosionTimes[i] < 10:
@@ -77,34 +131,32 @@ def animateExplosions(explosionTimes, explosionList):
             DISPLAYSURF.blit(expl3, (explosionList[i][0], explosionList[i][1]))
         elif explosionTimes[i] < 60:
             DISPLAYSURF.blit(expl2, (explosionList[i][0], explosionList[i][1]))
-        elif explosionTimes[i] < 70:
-            explosionTimes.pop(i)
-            explosionList.pop(i)
+
+def animateStars():
+    for i in range(len(snowList)):
+        pygame.draw.circle(DISPLAYSURF, WHITE, snowList[i], snowSize)
+        snowList[i][1] += snowListVelocities[i]
+        #snowListVelocities is one integer per list entry
+        if snowList[i][1] > HEIGHT:
+            snowList[i] = [random.randint(0, WIDTH), 0]
             
 def createSnowList():
     if len(snowList) < 1:
         for i in range(snowCount):
             snowList.append(randomLocation())
-
-def createBadGuys():
-    for i in 10:
-        for j in 10:
-            badGuys.append()
+    
 createSnowList()
 createSnowSpeeds()
+createBadGuyList(badGuyStartLeft, badGuyStartHeight, badGuySpacing)
 
 while RUNNING:
     DISPLAYSURF.fill(BLACK)
-    keys = pygame.key.get_pressed()
-        
+    keys = pygame.key.get_pressed()  
+    doScore(scoreMessage, WHITE, scorePosnX, scorePosnY, SCORE, scoreAmtPosnX, scoreAmtPosnY)
+    
     if SNOW:
-        for i in range(len(snowList)):
-            pygame.draw.circle(DISPLAYSURF, WHITE, snowList[i], snowSize)
-            snowList[i][1] += snowListVelocities[i]
-            #snowListVelocities is one integer per list entry
-            if snowList[i][1] > HEIGHT:
-                snowList[i] = [random.randint(0, WIDTH), 0]
-                
+        animateStars()
+               
     if keys[pygame.K_LEFT] and playerX >= 10:
         playerX -= playerSpeed
     if keys[pygame.K_RIGHT] and playerX <= WIDTH - 50:
@@ -113,7 +165,7 @@ while RUNNING:
         bulletOnScreen = True
         bulletLocX = playerX + 18
         bulletLocY = playerY - 10
-        
+            
     if bulletOnScreen and bulletLocY >= 0:
         pygame.draw.rect(DISPLAYSURF, WHITE, [bulletLocX, bulletLocY, bulletSizeX, bulletSizeY])
         bulletLocY -= bulletSpeed  
@@ -127,30 +179,44 @@ while RUNNING:
                     explosionList.append(badGuys.pop(i))
                     explosionTimes.append(0)
                     bulletOnScreen = False
-                    break
+                    SCORE += badPoints # Score increased per baddy destroyed
+                    break    
+                
         for i in range(len(badGuys)):
             if badGuys[i][0] < 10:
                 badGuysDirection = 'right'
-                dropBadGuys(badGuys)
+                dropBadGuys(badGuys)   
             elif badGuys[i][0] > WIDTH - 30:
                 badGuysDirection = 'left'
                 dropBadGuys(badGuys)
+                
         for i in range(len(badGuys)):
             if badGuysDirection == 'right':
                 badGuys[i][0] += badGuysSpeed
             elif badGuysDirection =='left':
                     badGuys[i][0] -= badGuysSpeed
             DISPLAYSURF.blit(enemyImg, (badGuys[i][0], badGuys[i][1]))
+            
+    elif len(badGuys) == 0:
+        if len (explosionTimes) > 0 and endTimer >= 30:
+            explosionTimes = []
+            explosionList = []
+        endTimer += 1
+        
     if len(explosionTimes) > 0:
         for i in range(len(explosionTimes)):
-            explosionTimes[i] += explosionProgression #basically a timer addition
+            explosionTimes[i] += explosionProgression #basically a timer
         animateExplosions(explosionTimes, explosionList)
     DISPLAYSURF.blit(playerImage, (playerX, playerY))
             
     for event in pygame.event.get():
         if event.type == QUIT:
-            pygame.quit()
-            sys.exit()
-    
+            quit()
+        if event.type == pygame.KEYUP:
+            if event.key == pygame.K_p:
+                PAUSE = True
+                paused()
+                
+            
     CLOCK.tick(FPS)
     pygame.display.update()
