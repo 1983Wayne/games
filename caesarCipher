@@ -1,0 +1,28 @@
+# Tried to create this from scratch, but only after seeing what it was supposed to do from other coders (more than one time!)
+
+def caesarCipher():
+    letters = 'abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+    letterL = []
+    newMessage = ''
+    for i in letters:
+        letterL.append(i)
+    choice = input('Encode "e" or Decode "d"? >  ')
+    message = input('What\'s the message? >  ')
+    key = int(input('And the key? >  '))
+    if choice == 'e':
+        for i in message:
+            # Needed to see if you have to wrap around the list
+            if letterL.index(i) + key > len(letterL):
+                letterIndex = (letterL.index(i) + key) - len(letterL)
+            else:
+                letterIndex = (letterL.index(i) + key)
+            newMessage += letterL[letterIndex]
+    else:
+        for i in message:
+            # Also to check if you have to wrap around the list
+            if letterL.index(i) - key < 0:
+                letterIndex = (letterL.index(i) - key) + len(letterL)
+            else:
+                letterIndex = (letterL.index(i) - key)
+            newMessage += letterL[letterIndex]
+    return newMessage
