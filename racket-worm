@@ -1,13 +1,14 @@
-;#lang racket
+#lang racket
+(require 2htdp/image 2htdp/universe)
 
 ; Head image is the red circle, and the segments or 'body' are all green.  The food is the blue star.
 (define head-img (circle 6 "solid" "red"))
-
 (define body-img (circle 6 "solid" "green"))
 (define food-img (star 16 "solid" "blue"))
 (define width 300)
 (define height 300)
 (define play-area (empty-scene width height))
+(define-struct posn (x y))
 
 ; The worm structure contains all the game data, including the position of food and the cumulative score.
 (define-struct worm (direction head body food score))
