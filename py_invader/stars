@@ -1,6 +1,6 @@
 import random
 
-# SIZE is the screen size, a tuple of (x, y) DEFAULT: (640 x 480)
+# SIZE is the screen size, a tuple of (x, y) DEFAULT: (1024 x 480), passed from main.py
 star_start_height = 0
 
 # Gets are random value between 0 and SCREEN SIZE for x values
