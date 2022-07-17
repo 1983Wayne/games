@@ -13,8 +13,6 @@ public class ComputerMove {
 
             // Select randomly what the computer is going to do
             computerSelection = (int)(Math.random() * 3 + 1);
-            System.out.println("Computer selection is: " + computerSelection);
-
 
             // Find out what the player is going to do
             System.out.println("Which do you choose? Select 1, 2, or 3 below:");
